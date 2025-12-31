@@ -80,10 +80,15 @@ final class TMuxSession: @unchecked Sendable {
 
     #if os(macOS)
     private func openTerminal() {
+        // Wait a moment for tmux session to be ready
+        Thread.sleep(forTimeInterval: 0.5)
+
+        // Use full path to tmux in case Terminal.app has different PATH
+        let tmuxCmd = Self.tmuxPath == "/usr/bin/env" ? "tmux" : Self.tmuxPath
         let script = """
         tell application "Terminal"
             activate
-            do script "tmux attach -t \(id)"
+            do script "\(tmuxCmd) attach -t \(id)"
         end tell
         """
 
