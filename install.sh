@@ -59,14 +59,32 @@ git clone --depth 1 "$REPO_URL" "$TEMP_DIR" 2>/dev/null
 
 echo "Building (this may take a minute)..."
 cd "$TEMP_DIR"
-swift build -c release --quiet
 
-echo "Installing..."
-sudo cp ".build/release/agent-bridge" "$INSTALL_DIR/"
+if swift build -c release --quiet 2>/dev/null; then
+    echo "Installing..."
+    sudo cp ".build/release/agent-bridge" "$INSTALL_DIR/"
+else
+    echo "Build failed, downloading pre-built binary..."
+    rm -rf "$TEMP_DIR"
+
+    # Detect architecture
+    ARCH=$(uname -m)
+    if [[ "$OS" == "Darwin" ]]; then
+        BINARY_URL="https://github.com/malatenszki/agent-bridge/releases/latest/download/agent-bridge-macos-universal"
+    else
+        echo "Error: Pre-built binaries only available for macOS. Please install build-essential and try again."
+        exit 1
+    fi
+
+    curl -L "$BINARY_URL" -o /tmp/agent-bridge
+    sudo cp /tmp/agent-bridge "$INSTALL_DIR/"
+    rm /tmp/agent-bridge
+fi
+
 sudo chmod +x "$INSTALL_DIR/agent-bridge"
 
 # Cleanup
-rm -rf "$TEMP_DIR"
+rm -rf "$TEMP_DIR" 2>/dev/null
 
 echo ""
 echo "Installation complete!"
