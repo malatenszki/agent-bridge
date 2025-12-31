@@ -54,6 +54,12 @@ INSTALL_DIR="/usr/local/bin"
 TEMP_DIR=$(mktemp -d)
 REPO_URL="https://github.com/malatenszki/agent-bridge.git"
 
+# Create install directory if it doesn't exist
+if [[ ! -d "$INSTALL_DIR" ]]; then
+    echo "Creating $INSTALL_DIR..."
+    sudo mkdir -p "$INSTALL_DIR"
+fi
+
 cleanup() {
     rm -rf "$TEMP_DIR" 2>/dev/null || true
 }
