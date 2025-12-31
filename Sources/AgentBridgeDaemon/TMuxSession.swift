@@ -48,6 +48,51 @@ final class TMuxSession: @unchecked Sendable {
         return []
     }
 
+    /// Known AI agent commands in order of preference
+    private static let aiAgents = ["claude", "aider", "codex", "gh copilot"]
+
+    /// Find an available command, with fallback to other AI agents
+    private static func findAvailableCommand(_ command: String, arguments: [String]) -> String? {
+        let fullCommand = ([command] + arguments).joined(separator: " ")
+
+        // If explicit command is given and it's not a known AI agent, use it as-is
+        if !aiAgents.contains(command) && command != "claude" {
+            return fullCommand
+        }
+
+        // Check if the requested command exists
+        if commandExists(command) {
+            return fullCommand
+        }
+
+        // Try fallback AI agents
+        for agent in aiAgents {
+            if agent != command && commandExists(agent.split(separator: " ").first.map(String.init) ?? agent) {
+                return agent
+            }
+        }
+
+        // No agent found - return nil to leave empty shell
+        return nil
+    }
+
+    /// Check if a command exists in PATH
+    private static func commandExists(_ command: String) -> Bool {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/which")
+        process.arguments = [command]
+        process.standardOutput = FileHandle.nullDevice
+        process.standardError = FileHandle.nullDevice
+
+        do {
+            try process.run()
+            process.waitUntilExit()
+            return process.terminationStatus == 0
+        } catch {
+            return false
+        }
+    }
+
     init(id: String, command: String, arguments: [String]) throws {
         self.id = id
         self.command = command
@@ -71,13 +116,18 @@ final class TMuxSession: @unchecked Sendable {
         // Wait for session to be ready
         Thread.sleep(forTimeInterval: 0.3)
 
-        // Send the command to the shell (shell stays open even if command fails)
-        let fullCommand = ([command] + arguments).joined(separator: " ")
-        let sendCmd = Process()
-        sendCmd.executableURL = URL(fileURLWithPath: Self.tmuxPath)
-        sendCmd.arguments = Self.tmuxArgs + ["send-keys", "-t", id, fullCommand, "Enter"]
-        try? sendCmd.run()
-        sendCmd.waitUntilExit()
+        // Find an available AI agent command
+        let commandToRun = Self.findAvailableCommand(command, arguments: arguments)
+
+        if let cmd = commandToRun {
+            // Send the command to the shell
+            let sendCmd = Process()
+            sendCmd.executableURL = URL(fileURLWithPath: Self.tmuxPath)
+            sendCmd.arguments = Self.tmuxArgs + ["send-keys", "-t", id, cmd, "Enter"]
+            try? sendCmd.run()
+            sendCmd.waitUntilExit()
+        }
+        // If no command found, just leave empty shell
 
         // Open terminal attached to the tmux session (macOS only)
         #if os(macOS)
