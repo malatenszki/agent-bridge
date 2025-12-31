@@ -7,11 +7,12 @@ A daemon that allows you to control CLI agents (like Claude Code) remotely from 
 ### macOS
 - macOS 13.0+
 - tmux (`brew install tmux`)
-- Swift 5.9+ (included with Xcode)
+- Xcode Command Line Tools (`xcode-select --install`)
 
 ### Linux
 - Ubuntu 20.04+ / Debian 11+ / Fedora 38+ / Arch
 - tmux (`sudo apt install tmux` or equivalent)
+- C++ compiler (`sudo apt install build-essential` or equivalent)
 - Swift 5.9+ (install from [swift.org](https://swift.org/download/) or use [swiftly](https://github.com/swiftlang/swiftly))
 
 ## Installation

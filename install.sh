@@ -31,12 +31,23 @@ fi
 if ! command -v swift &> /dev/null; then
     echo "Swift is required but not installed."
     if [[ "$OS" == "Darwin" ]]; then
-        echo "Install Xcode or Xcode Command Line Tools"
+        echo "Install Xcode Command Line Tools: xcode-select --install"
     else
         echo "Install Swift from https://swift.org/download/"
         echo "Or use swiftly: curl -L https://swiftlang.github.io/swiftly/swiftly-install.sh | bash"
     fi
     exit 1
+fi
+
+# Check for C++ compiler (needed for BoringSSL)
+if [[ "$OS" == "Linux" ]]; then
+    if ! command -v g++ &> /dev/null; then
+        echo "C++ compiler (g++) is required but not installed."
+        echo "Install it with: sudo apt install build-essential  (Debian/Ubuntu)"
+        echo "            or: sudo dnf install gcc-c++           (Fedora)"
+        echo "            or: sudo pacman -S base-devel          (Arch)"
+        exit 1
+    fi
 fi
 
 INSTALL_DIR="/usr/local/bin"
