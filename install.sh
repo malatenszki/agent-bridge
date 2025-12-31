@@ -74,7 +74,13 @@ git clone --depth 1 "$REPO_URL" "$TEMP_DIR" >/dev/null 2>&1 || {
 echo "Building (this may take a minute)..."
 cd "$TEMP_DIR"
 
-if swift build -c release --quiet 2>/dev/null; then
+# Try to build (don't exit on failure)
+set +e
+swift build -c release --quiet 2>/dev/null
+BUILD_RESULT=$?
+set -e
+
+if [[ $BUILD_RESULT -eq 0 ]]; then
     echo "Installing..."
     sudo cp ".build/release/agent-bridge" "$INSTALL_DIR/"
     sudo chmod +x "$INSTALL_DIR/agent-bridge"
