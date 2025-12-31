@@ -14,17 +14,29 @@ if [[ "$OS" != "Darwin" && "$OS" != "Linux" ]]; then
     exit 1
 fi
 
-# Check for tmux
+# Check and install tmux
 if ! command -v tmux &> /dev/null; then
-    echo "tmux is required but not installed."
+    echo "tmux not found, installing..."
     if [[ "$OS" == "Darwin" ]]; then
-        echo "Install it with: brew install tmux"
+        if command -v brew &> /dev/null; then
+            brew install tmux
+        else
+            echo "Error: Homebrew is required to install tmux."
+            echo "Install Homebrew first: /bin/bash -c \"\$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)\""
+            exit 1
+        fi
     else
-        echo "Install it with: sudo apt install tmux  (Debian/Ubuntu)"
-        echo "            or: sudo dnf install tmux  (Fedora)"
-        echo "            or: sudo pacman -S tmux    (Arch)"
+        if command -v apt &> /dev/null; then
+            sudo apt update && sudo apt install -y tmux
+        elif command -v dnf &> /dev/null; then
+            sudo dnf install -y tmux
+        elif command -v pacman &> /dev/null; then
+            sudo pacman -S --noconfirm tmux
+        else
+            echo "Error: Could not detect package manager. Please install tmux manually."
+            exit 1
+        fi
     fi
-    exit 1
 fi
 
 # Check for Swift
