@@ -39,7 +39,7 @@ if ! command -v swift &> /dev/null; then
     exit 1
 fi
 
-# Check for C++ compiler (needed for BoringSSL)
+# Check for C++ compiler (needed for BoringSSL) - Linux only
 if [[ "$OS" == "Linux" ]]; then
     if ! command -v g++ &> /dev/null; then
         echo "C++ compiler (g++) is required but not installed."
@@ -54,8 +54,16 @@ INSTALL_DIR="/usr/local/bin"
 TEMP_DIR=$(mktemp -d)
 REPO_URL="https://github.com/malatenszki/agent-bridge.git"
 
+cleanup() {
+    rm -rf "$TEMP_DIR" 2>/dev/null || true
+}
+trap cleanup EXIT
+
 echo "Cloning repository..."
-git clone --depth 1 "$REPO_URL" "$TEMP_DIR" 2>/dev/null
+git clone --depth 1 "$REPO_URL" "$TEMP_DIR" >/dev/null 2>&1 || {
+    echo "Error: Failed to clone repository"
+    exit 1
+}
 
 echo "Building (this may take a minute)..."
 cd "$TEMP_DIR"
@@ -63,28 +71,30 @@ cd "$TEMP_DIR"
 if swift build -c release --quiet 2>/dev/null; then
     echo "Installing..."
     sudo cp ".build/release/agent-bridge" "$INSTALL_DIR/"
+    sudo chmod +x "$INSTALL_DIR/agent-bridge"
 else
-    echo "Build failed, downloading pre-built binary..."
-    rm -rf "$TEMP_DIR"
+    echo "Build failed."
 
-    # Detect architecture
-    ARCH=$(uname -m)
     if [[ "$OS" == "Darwin" ]]; then
+        echo "Downloading pre-built binary..."
         BINARY_URL="https://github.com/malatenszki/agent-bridge/releases/latest/download/agent-bridge-macos-universal"
+
+        curl -fsSL "$BINARY_URL" -o /tmp/agent-bridge || {
+            echo "Error: Failed to download binary"
+            exit 1
+        }
+        sudo cp /tmp/agent-bridge "$INSTALL_DIR/"
+        sudo chmod +x "$INSTALL_DIR/agent-bridge"
+        rm -f /tmp/agent-bridge
     else
-        echo "Error: Pre-built binaries only available for macOS. Please install build-essential and try again."
+        echo ""
+        echo "Error: Build failed on Linux. Please ensure you have:"
+        echo "  - Swift 5.9+ installed correctly"
+        echo "  - build-essential (g++) installed"
+        echo "Then try again."
         exit 1
     fi
-
-    curl -L "$BINARY_URL" -o /tmp/agent-bridge
-    sudo cp /tmp/agent-bridge "$INSTALL_DIR/"
-    rm /tmp/agent-bridge
 fi
-
-sudo chmod +x "$INSTALL_DIR/agent-bridge"
-
-# Cleanup
-rm -rf "$TEMP_DIR" 2>/dev/null
 
 echo ""
 echo "Installation complete!"
