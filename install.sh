@@ -2,7 +2,7 @@
 set -e
 
 echo "==================================="
-echo "  Agent Bridge Daemon Installer"
+echo "  Agent Bridge Installer"
 echo "==================================="
 echo ""
 
@@ -41,7 +41,7 @@ fi
 
 INSTALL_DIR="/usr/local/bin"
 TEMP_DIR=$(mktemp -d)
-REPO_URL="https://github.com/malatenszki/agent-bridge-daemon.git"
+REPO_URL="https://github.com/malatenszki/agent-bridge.git"
 
 echo "Cloning repository..."
 git clone --depth 1 "$REPO_URL" "$TEMP_DIR" 2>/dev/null
@@ -51,8 +51,8 @@ cd "$TEMP_DIR"
 swift build -c release --quiet
 
 echo "Installing..."
-sudo cp ".build/release/agent-bridge-daemon" "$INSTALL_DIR/"
-sudo chmod +x "$INSTALL_DIR/agent-bridge-daemon"
+sudo cp ".build/release/agent-bridge" "$INSTALL_DIR/"
+sudo chmod +x "$INSTALL_DIR/agent-bridge"
 
 # Cleanup
 rm -rf "$TEMP_DIR"
@@ -60,7 +60,7 @@ rm -rf "$TEMP_DIR"
 echo ""
 echo "Installation complete!"
 echo ""
-echo "To start the daemon, run:"
-echo "  agent-bridge-daemon"
+echo "To start, run:"
+echo "  agent-bridge"
 echo ""
 echo "Then scan the QR code with the Agent Bridge iOS app."

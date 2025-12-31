@@ -1,4 +1,4 @@
-# Agent Bridge Daemon
+# Agent Bridge
 
 A daemon that allows you to control CLI agents (like Claude Code) remotely from your iOS device. Works on **macOS** and **Linux**.
 
@@ -19,30 +19,30 @@ A daemon that allows you to control CLI agents (like Claude Code) remotely from 
 ### Option 1: Install Script (Recommended)
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/malatenszki/agent-bridge-daemon/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/malatenszki/agent-bridge/main/install.sh | bash
 ```
 
 ### Option 2: Build from Source
 
 ```bash
-git clone https://github.com/malatenszki/agent-bridge-daemon.git
-cd agent-bridge-daemon
+git clone https://github.com/malatenszki/agent-bridge.git
+cd agent-bridge
 swift build -c release
-sudo cp .build/release/agent-bridge-daemon /usr/local/bin/
+sudo cp .build/release/agent-bridge /usr/local/bin/
 ```
 
 ### Option 3: Homebrew (macOS only)
 
 ```bash
 brew tap malatenszki/agent-bridge
-brew install agent-bridge-daemon
+brew install agent-bridge
 ```
 
 ## Usage
 
 1. Start the daemon:
    ```bash
-   agent-bridge-daemon
+   agent-bridge
    ```
 
 2. A QR code will appear in the terminal
@@ -85,13 +85,13 @@ The daemon stores device keys in:
 
 **macOS:**
 ```bash
-sudo rm /usr/local/bin/agent-bridge-daemon
+sudo rm /usr/local/bin/agent-bridge
 rm -rf ~/Library/Application\ Support/AgentBridge
 ```
 
 **Linux:**
 ```bash
-sudo rm /usr/local/bin/agent-bridge-daemon
+sudo rm /usr/local/bin/agent-bridge
 rm -rf ~/.config/AgentBridge
 ```
 
