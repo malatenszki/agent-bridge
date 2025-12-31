@@ -1,12 +1,18 @@
 # Agent Bridge Daemon
 
-A macOS daemon that allows you to control CLI agents (like Claude Code) remotely from your iOS device.
+A daemon that allows you to control CLI agents (like Claude Code) remotely from your iOS device. Works on **macOS** and **Linux**.
 
 ## Requirements
 
+### macOS
 - macOS 13.0+
-- tmux installed (`brew install tmux`)
-- Swift 5.9+
+- tmux (`brew install tmux`)
+- Swift 5.9+ (included with Xcode)
+
+### Linux
+- Ubuntu 20.04+ / Debian 11+ / Fedora 38+ / Arch
+- tmux (`sudo apt install tmux` or equivalent)
+- Swift 5.9+ (install from [swift.org](https://swift.org/download/) or use [swiftly](https://github.com/swiftlang/swiftly))
 
 ## Installation
 
@@ -25,7 +31,7 @@ swift build -c release
 sudo cp .build/release/agent-bridge-daemon /usr/local/bin/
 ```
 
-### Option 3: Homebrew
+### Option 3: Homebrew (macOS only)
 
 ```bash
 brew tap malatenszki/agent-bridge
@@ -59,20 +65,34 @@ The daemon:
 1. Runs a local web server (default port 8765)
 2. Creates tmux sessions for each agent
 3. Streams output via WebSocket
-4. Opens Terminal.app so you can see sessions on Mac too
+4. Sessions are visible in your terminal (attach with `tmux attach`)
 
 ## Configuration
 
 The daemon stores device keys in:
+
+**macOS:**
 ```
 ~/Library/Application Support/AgentBridge/device_keys.json
 ```
 
+**Linux:**
+```
+~/.config/AgentBridge/device_keys.json
+```
+
 ## Uninstall
 
+**macOS:**
 ```bash
 sudo rm /usr/local/bin/agent-bridge-daemon
 rm -rf ~/Library/Application\ Support/AgentBridge
+```
+
+**Linux:**
+```bash
+sudo rm /usr/local/bin/agent-bridge-daemon
+rm -rf ~/.config/AgentBridge
 ```
 
 ## License

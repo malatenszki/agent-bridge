@@ -6,23 +6,36 @@ echo "  Agent Bridge Daemon Installer"
 echo "==================================="
 echo ""
 
-# Check for macOS
-if [[ "$(uname)" != "Darwin" ]]; then
-    echo "Error: This tool only works on macOS"
+OS="$(uname)"
+
+# Check for supported OS
+if [[ "$OS" != "Darwin" && "$OS" != "Linux" ]]; then
+    echo "Error: This tool only works on macOS and Linux"
     exit 1
 fi
 
 # Check for tmux
 if ! command -v tmux &> /dev/null; then
     echo "tmux is required but not installed."
-    echo "Install it with: brew install tmux"
+    if [[ "$OS" == "Darwin" ]]; then
+        echo "Install it with: brew install tmux"
+    else
+        echo "Install it with: sudo apt install tmux  (Debian/Ubuntu)"
+        echo "            or: sudo dnf install tmux  (Fedora)"
+        echo "            or: sudo pacman -S tmux    (Arch)"
+    fi
     exit 1
 fi
 
 # Check for Swift
 if ! command -v swift &> /dev/null; then
     echo "Swift is required but not installed."
-    echo "Install Xcode or Xcode Command Line Tools"
+    if [[ "$OS" == "Darwin" ]]; then
+        echo "Install Xcode or Xcode Command Line Tools"
+    else
+        echo "Install Swift from https://swift.org/download/"
+        echo "Or use swiftly: curl -L https://swiftlang.github.io/swiftly/swiftly-install.sh | bash"
+    fi
     exit 1
 fi
 

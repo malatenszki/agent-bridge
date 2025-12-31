@@ -12,10 +12,21 @@ actor AuthManager {
     /// File path for persisting device keys
     private let keysFilePath: URL
 
-    init() {
-        // Store keys in ~/Library/Application Support/AgentBridge/
+    /// Get platform-specific config directory
+    private static func getConfigDirectory() -> URL {
+        #if os(macOS)
+        // macOS: ~/Library/Application Support/AgentBridge/
         let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
-        let appDir = appSupport.appendingPathComponent("AgentBridge")
+        return appSupport.appendingPathComponent("AgentBridge")
+        #else
+        // Linux: ~/.config/AgentBridge/
+        let home = FileManager.default.homeDirectoryForCurrentUser
+        return home.appendingPathComponent(".config/AgentBridge")
+        #endif
+    }
+
+    init() {
+        let appDir = Self.getConfigDirectory()
 
         // Create directory if needed
         try? FileManager.default.createDirectory(at: appDir, withIntermediateDirectories: true)
@@ -135,11 +146,30 @@ actor AuthManager {
     /// Generate a cryptographically secure token
     private func generateSecureToken(length: Int) -> String {
         let chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789" // Avoid confusing chars like 0/O, 1/I
-        var result = ""
         var randomBytes = [UInt8](repeating: 0, count: length)
-        _ = SecRandomCopyBytes(kSecRandomDefault, length, &randomBytes)
 
-        for byte in randomBytes {
+        #if os(macOS)
+        _ = SecRandomCopyBytes(kSecRandomDefault, length, &randomBytes)
+        #else
+        // Linux: read from /dev/urandom
+        guard let file = fopen("/dev/urandom", "r") else {
+            // Fallback to Swift's random
+            for _ in 0..<length {
+                randomBytes.append(UInt8.random(in: 0...255))
+            }
+            randomBytes = Array(randomBytes.prefix(length))
+            return generateFromBytes(randomBytes, chars: chars)
+        }
+        fread(&randomBytes, 1, length, file)
+        fclose(file)
+        #endif
+
+        return generateFromBytes(randomBytes, chars: chars)
+    }
+
+    private func generateFromBytes(_ bytes: [UInt8], chars: String) -> String {
+        var result = ""
+        for byte in bytes {
             let index = Int(byte) % chars.count
             result.append(chars[chars.index(chars.startIndex, offsetBy: index)])
         }

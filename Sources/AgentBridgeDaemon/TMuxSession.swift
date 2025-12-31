@@ -1,6 +1,6 @@
 import Foundation
 
-/// Session that runs in tmux - visible in Terminal.app and controllable from iOS
+/// Session that runs in tmux - visible in terminal and controllable from iOS
 final class TMuxSession: @unchecked Sendable {
     let id: String
     let command: String
@@ -18,6 +18,36 @@ final class TMuxSession: @unchecked Sendable {
     var onOutputChunk: ((OutputChunk) -> Void)?
     var onStateChange: ((SessionState) -> Void)?
 
+    /// Find tmux executable in PATH
+    private static func findTmux() -> String {
+        // Common locations
+        let paths = [
+            "/opt/homebrew/bin/tmux",  // macOS ARM
+            "/usr/local/bin/tmux",      // macOS Intel / Linux manual install
+            "/usr/bin/tmux"             // Linux package manager
+        ]
+
+        for path in paths {
+            if FileManager.default.isExecutableFile(atPath: path) {
+                return path
+            }
+        }
+
+        // Fallback - assume it's in PATH
+        return "/usr/bin/env"
+    }
+
+    private static var tmuxPath: String = {
+        findTmux()
+    }()
+
+    private static var tmuxArgs: [String] {
+        if tmuxPath == "/usr/bin/env" {
+            return ["tmux"]
+        }
+        return []
+    }
+
     init(id: String, command: String, arguments: [String]) throws {
         self.id = id
         self.command = command
@@ -28,8 +58,8 @@ final class TMuxSession: @unchecked Sendable {
         // Create tmux session
         let fullCommand = ([command] + arguments).joined(separator: " ")
         let tmuxCreate = Process()
-        tmuxCreate.executableURL = URL(fileURLWithPath: "/opt/homebrew/bin/tmux")
-        tmuxCreate.arguments = ["new-session", "-d", "-s", id, fullCommand]
+        tmuxCreate.executableURL = URL(fileURLWithPath: Self.tmuxPath)
+        tmuxCreate.arguments = Self.tmuxArgs + ["new-session", "-d", "-s", id, fullCommand]
         tmuxCreate.environment = ProcessInfo.processInfo.environment
 
         try tmuxCreate.run()
@@ -39,13 +69,16 @@ final class TMuxSession: @unchecked Sendable {
             throw TMuxError.failedToCreateSession
         }
 
-        // Open Terminal.app attached to the tmux session
+        // Open terminal attached to the tmux session (macOS only)
+        #if os(macOS)
         openTerminal()
+        #endif
 
         // Start polling for output
         startOutputPolling()
     }
 
+    #if os(macOS)
     private func openTerminal() {
         let script = """
         tell application "Terminal"
@@ -59,6 +92,7 @@ final class TMuxSession: @unchecked Sendable {
         process.arguments = ["-e", script]
         try? process.run()
     }
+    #endif
 
     private func startOutputPolling() {
         // Use a background queue for polling
@@ -81,8 +115,8 @@ final class TMuxSession: @unchecked Sendable {
         // Capture pane content
         let process = Process()
         let pipe = Pipe()
-        process.executableURL = URL(fileURLWithPath: "/opt/homebrew/bin/tmux")
-        process.arguments = ["capture-pane", "-t", id, "-p", "-S", "-1000"]
+        process.executableURL = URL(fileURLWithPath: Self.tmuxPath)
+        process.arguments = Self.tmuxArgs + ["capture-pane", "-t", id, "-p", "-S", "-1000"]
         process.standardOutput = pipe
         process.standardError = FileHandle.nullDevice
 
@@ -133,8 +167,8 @@ final class TMuxSession: @unchecked Sendable {
 
     private func isSessionAlive() -> Bool {
         let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/opt/homebrew/bin/tmux")
-        process.arguments = ["has-session", "-t", id]
+        process.executableURL = URL(fileURLWithPath: Self.tmuxPath)
+        process.arguments = Self.tmuxArgs + ["has-session", "-t", id]
         process.standardOutput = FileHandle.nullDevice
         process.standardError = FileHandle.nullDevice
 
@@ -170,8 +204,8 @@ final class TMuxSession: @unchecked Sendable {
 
         // Send via tmux - use -l for literal text, then send Enter separately
         let textProcess = Process()
-        textProcess.executableURL = URL(fileURLWithPath: "/opt/homebrew/bin/tmux")
-        textProcess.arguments = ["send-keys", "-t", id, "-l", input]
+        textProcess.executableURL = URL(fileURLWithPath: Self.tmuxPath)
+        textProcess.arguments = Self.tmuxArgs + ["send-keys", "-t", id, "-l", input]
         textProcess.standardOutput = FileHandle.nullDevice
         textProcess.standardError = FileHandle.nullDevice
         try? textProcess.run()
@@ -179,8 +213,8 @@ final class TMuxSession: @unchecked Sendable {
 
         // Send Enter key
         let enterProcess = Process()
-        enterProcess.executableURL = URL(fileURLWithPath: "/opt/homebrew/bin/tmux")
-        enterProcess.arguments = ["send-keys", "-t", id, "Enter"]
+        enterProcess.executableURL = URL(fileURLWithPath: Self.tmuxPath)
+        enterProcess.arguments = Self.tmuxArgs + ["send-keys", "-t", id, "Enter"]
         enterProcess.standardOutput = FileHandle.nullDevice
         enterProcess.standardError = FileHandle.nullDevice
         try? enterProcess.run()
@@ -208,8 +242,8 @@ final class TMuxSession: @unchecked Sendable {
         updateState(.exited)
 
         let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/opt/homebrew/bin/tmux")
-        process.arguments = ["kill-session", "-t", id]
+        process.executableURL = URL(fileURLWithPath: Self.tmuxPath)
+        process.arguments = Self.tmuxArgs + ["kill-session", "-t", id]
         process.standardOutput = FileHandle.nullDevice
         process.standardError = FileHandle.nullDevice
 

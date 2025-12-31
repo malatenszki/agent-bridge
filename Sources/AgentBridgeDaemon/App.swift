@@ -1,4 +1,9 @@
 import Foundation
+#if os(macOS)
+import Darwin
+#else
+import Glibc
+#endif
 
 struct AgentBridgeDaemon {
     static func main() {
@@ -74,12 +79,18 @@ struct AgentBridgeDaemon {
         if let qrString = try? pairingInfo.toQRString() {
             print("Scan this QR code with the Agent Bridge iOS app:")
             print("")
+            #if canImport(CoreImage)
             let qrCode = QRCodeGenerator.generateASCII(from: qrString)
             if qrCode.isEmpty {
-                print("[QR code generation failed - use manual pairing]")
+                // Fallback to terminal QR code
+                print(TerminalQRCode.generate(from: qrString))
             } else {
                 print(qrCode)
             }
+            #else
+            // Linux: use terminal QR code generator
+            print(TerminalQRCode.generate(from: qrString))
+            #endif
             print("")
         } else {
             print("[Could not generate QR string]")
@@ -101,7 +112,11 @@ struct AgentBridgeDaemon {
                 Foundation.exit(0)
             }
         }
+        #if os(macOS)
         Darwin.signal(SIGINT, SIG_IGN)
+        #else
+        Glibc.signal(SIGINT, SIG_IGN)
+        #endif
         signalSource.resume()
 
         // Periodically refresh pairing token
@@ -121,7 +136,12 @@ struct AgentBridgeDaemon {
                 print("Expires: \(formatDate(newToken.expiresAt))")
                 if let qrString = try? newInfo.toQRString() {
                     print("")
-                    print(QRCodeGenerator.generateASCII(from: qrString))
+                    #if canImport(CoreImage)
+                    let qrCode = QRCodeGenerator.generateASCII(from: qrString)
+                    print(qrCode.isEmpty ? TerminalQRCode.generate(from: qrString) : qrCode)
+                    #else
+                    print(TerminalQRCode.generate(from: qrString))
+                    #endif
                 }
                 print("")
             }

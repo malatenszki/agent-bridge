@@ -1,5 +1,9 @@
 import Foundation
+#if os(macOS)
 import Darwin
+#else
+import Glibc
+#endif
 
 /// Network utility functions
 struct NetworkUtils {
@@ -23,7 +27,14 @@ struct NetworkUtils {
                 let name = String(cString: interface.ifa_name)
 
                 // Skip loopback
-                if name == "lo0" {
+                let loopbackName: String
+                #if os(macOS)
+                loopbackName = "lo0"
+                #else
+                loopbackName = "lo"
+                #endif
+
+                if name == loopbackName {
                     if let next = interface.ifa_next {
                         ptr = next
                         continue
@@ -32,9 +43,17 @@ struct NetworkUtils {
                 }
 
                 var hostname = [CChar](repeating: 0, count: Int(NI_MAXHOST))
+
+                // sa_len doesn't exist on Linux, use sizeof(sockaddr_in) instead
+                #if os(macOS)
+                let addrLen = socklen_t(interface.ifa_addr.pointee.sa_len)
+                #else
+                let addrLen = socklen_t(MemoryLayout<sockaddr_in>.size)
+                #endif
+
                 let result = getnameinfo(
                     interface.ifa_addr,
-                    socklen_t(interface.ifa_addr.pointee.sa_len),
+                    addrLen,
                     &hostname,
                     socklen_t(hostname.count),
                     nil,
@@ -54,8 +73,11 @@ struct NetworkUtils {
                         break
                     }
 
-                    // Priority: en0 (WiFi) = 1, en1 = 2, other en* = 3, others = 10
+                    // Priority varies by platform
+                    // macOS: en0 (WiFi) = 1, en1 = 2, other en* = 3, others = 10
+                    // Linux: wlan* = 1, eth* = 2, others = 10
                     let priority: Int
+                    #if os(macOS)
                     if name == "en0" {
                         priority = 1
                     } else if name == "en1" {
@@ -65,6 +87,15 @@ struct NetworkUtils {
                     } else {
                         priority = 10
                     }
+                    #else
+                    if name.hasPrefix("wlan") || name.hasPrefix("wlp") {
+                        priority = 1  // WiFi
+                    } else if name.hasPrefix("eth") || name.hasPrefix("enp") {
+                        priority = 2  // Ethernet
+                    } else {
+                        priority = 10
+                    }
+                    #endif
 
                     if priority < bestPriority {
                         bestPriority = priority

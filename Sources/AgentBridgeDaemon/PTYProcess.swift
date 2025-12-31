@@ -1,8 +1,12 @@
 import Foundation
+#if os(macOS)
 import Darwin
+#else
+import Glibc
+#endif
 
 /// Manages a child process running in a pseudo-terminal (PTY)
-/// Uses forkpty via Process for compatibility with modern macOS
+/// Uses forkpty via Process for compatibility
 final class PTYProcess: @unchecked Sendable {
     private let masterFD: Int32
     private let process: Process
@@ -131,7 +135,11 @@ final class PTYProcess: @unchecked Sendable {
     func write(_ data: Data) {
         data.withUnsafeBytes { buffer in
             guard let baseAddress = buffer.baseAddress else { return }
+            #if os(macOS)
             _ = Darwin.write(masterFD, baseAddress, data.count)
+            #else
+            _ = Glibc.write(masterFD, baseAddress, data.count)
+            #endif
         }
     }
 
