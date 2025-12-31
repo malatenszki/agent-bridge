@@ -55,11 +55,13 @@ final class TMuxSession: @unchecked Sendable {
         self.createdAt = Date()
         self.workingDirectory = FileManager.default.currentDirectoryPath
 
-        // Create tmux session
+        // Create tmux session - use shell to keep session alive even if command fails
         let fullCommand = ([command] + arguments).joined(separator: " ")
+        let shellCommand = "\(fullCommand); echo ''; echo '[Session ended. Press Enter to close]'; read"
+
         let tmuxCreate = Process()
         tmuxCreate.executableURL = URL(fileURLWithPath: Self.tmuxPath)
-        tmuxCreate.arguments = Self.tmuxArgs + ["new-session", "-d", "-s", id, fullCommand]
+        tmuxCreate.arguments = Self.tmuxArgs + ["new-session", "-d", "-s", id, "bash", "-c", shellCommand]
         tmuxCreate.environment = ProcessInfo.processInfo.environment
 
         try tmuxCreate.run()
@@ -68,6 +70,9 @@ final class TMuxSession: @unchecked Sendable {
         guard tmuxCreate.terminationStatus == 0 else {
             throw TMuxError.failedToCreateSession
         }
+
+        // Wait for session to be ready
+        Thread.sleep(forTimeInterval: 0.3)
 
         // Open terminal attached to the tmux session (macOS only)
         #if os(macOS)

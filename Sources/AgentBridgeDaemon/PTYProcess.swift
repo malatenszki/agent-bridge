@@ -145,7 +145,9 @@ final class PTYProcess: @unchecked Sendable {
 
     /// Terminate the process
     func terminate() {
-        process.terminate()
+        if process.isRunning {
+            process.terminate()
+        }
     }
 
     /// Interrupt the process (Ctrl+C)
@@ -168,7 +170,7 @@ final class PTYProcess: @unchecked Sendable {
 
     deinit {
         readSource?.cancel()
-        if isRunning {
+        if process.isRunning {
             terminate()
         }
     }
