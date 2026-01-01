@@ -11,6 +11,7 @@ final class TMuxSession: @unchecked Sendable {
     private var outputHistory: [OutputChunk] = []
     private let historyLock = NSLock()
     private var lastSentContent: String = ""
+    private let promptDetector = PromptDetector()
 
     private(set) var state: SessionState = .running
     private(set) var exitCode: Int32?
@@ -222,8 +223,8 @@ final class TMuxSession: @unchecked Sendable {
 
         onOutputChunk?(chunk)
 
-        // Check for prompt (waiting for input)
-        if recentLines.contains("> ") || recentLines.hasSuffix(">") {
+        // Check for prompt using sophisticated detection
+        if promptDetector.detectPrompt(in: fullOutput) {
             updateState(.waitingForInput)
         } else {
             updateState(.running)
