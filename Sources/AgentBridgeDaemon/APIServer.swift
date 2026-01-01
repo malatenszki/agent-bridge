@@ -6,12 +6,14 @@ final class APIServer {
     private let app: Application
     private let sessionManager: SessionManager
     private let authManager: AuthManager
+    private let processScanner: ProcessScanner
     private let host: String
     private let port: Int
 
-    init(sessionManager: SessionManager, authManager: AuthManager, host: String = "0.0.0.0", port: Int = 8765) throws {
+    init(sessionManager: SessionManager, authManager: AuthManager, processScanner: ProcessScanner, host: String = "0.0.0.0", port: Int = 8765) throws {
         self.sessionManager = sessionManager
         self.authManager = authManager
+        self.processScanner = processScanner
         self.host = host
         self.port = port
 
@@ -77,6 +79,12 @@ final class APIServer {
         protected.delete("sessions", ":id") { [weak self] req async throws -> Response in
             guard let self = self else { throw Abort(.internalServerError) }
             return try await self.handleDeleteSession(req)
+        }
+
+        // Process detection endpoint
+        protected.get("processes") { [weak self] req async throws -> Response in
+            guard let self = self else { throw Abort(.internalServerError) }
+            return try await self.handleGetProcesses(req)
         }
 
         // WebSocket endpoint
@@ -185,6 +193,11 @@ final class APIServer {
 
         await sessionManager.removeSession(id)
         return try await StatusResponse(status: "ok").encodeResponse(for: req)
+    }
+
+    private func handleGetProcesses(_ req: Request) async throws -> Response {
+        let processes = await processScanner.getProcesses()
+        return try await processes.encodeResponse(for: req)
     }
 
     // MARK: - WebSocket
@@ -387,6 +400,7 @@ struct AuthMiddleware: AsyncMiddleware {
 
 extension SessionSummary: Content {}
 extension OutputChunk: Content {}
+extension ExternalProcess: Content {}
 
 struct StatusResponse: Content {
     let status: String

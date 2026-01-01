@@ -1,27 +1,38 @@
 import Foundation
 
-/// Represents an externally detected Claude process
-struct ExternalProcess: Identifiable, Sendable {
-    let id: String  // PID as string
+/// Represents an available AI CLI tool
+struct ExternalProcess: Identifiable, Sendable, Codable {
+    let id: String
     let pid: Int32
     let command: String
     let tty: String
     let startTime: Date
 
     var displayName: String {
-        "claude (PID: \(pid))"
+        command
+    }
+
+    /// Create an entry for an installed AI tool
+    static func installed(name: String, path: String) -> ExternalProcess {
+        ExternalProcess(
+            id: name,
+            pid: 0,
+            command: path,
+            tty: "",
+            startTime: Date()
+        )
     }
 }
 
-/// Scans for running Claude processes on the system
+/// Scans for installed AI CLI tools on the system
 actor ProcessScanner {
-    private var knownProcesses: [Int32: ExternalProcess] = [:]
+    private var knownTools: [String: ExternalProcess] = [:]
     private var scanTask: Task<Void, Never>?
 
-    /// Callback when processes change - must be set before starting scanning
+    /// Callback when tools change - must be set before starting scanning
     private var onProcessesChanged: (([ExternalProcess]) -> Void)?
 
-    /// Set the callback for process changes
+    /// Set the callback for tool changes
     func setOnProcessesChanged(_ callback: @escaping ([ExternalProcess]) -> Void) {
         onProcessesChanged = callback
     }
@@ -34,7 +45,7 @@ actor ProcessScanner {
             // Do initial scan immediately
             await scan()
 
-            // Then continue periodic scanning
+            // Then continue periodic scanning (in case new tools are installed)
             while !Task.isCancelled {
                 try? await Task.sleep(nanoseconds: UInt64(interval * 1_000_000_000))
                 await scan()
@@ -44,12 +55,12 @@ actor ProcessScanner {
 
     /// Perform a single scan and wait for it to complete
     func scanNow() async -> [ExternalProcess] {
-        let processes = findClaudeProcesses()
+        let tools = findInstalledAITools()
 
-        // Update known processes
-        knownProcesses = Dictionary(uniqueKeysWithValues: processes.map { ($0.pid, $0) })
+        // Update known tools
+        knownTools = Dictionary(uniqueKeysWithValues: tools.map { ($0.id, $0) })
 
-        return processes
+        return tools
     }
 
     /// Stop scanning
@@ -58,34 +69,69 @@ actor ProcessScanner {
         scanTask = nil
     }
 
-    /// Get current known processes
+    /// Get current known tools
     func getProcesses() -> [ExternalProcess] {
-        Array(knownProcesses.values).sorted { $0.pid < $1.pid }
+        Array(knownTools.values).sorted { $0.displayName < $1.displayName }
     }
 
-    /// Perform a scan for Claude processes
+    /// Perform a scan for installed AI tools
     private func scan() async {
-        let processes = findClaudeProcesses()
+        let tools = findInstalledAITools()
 
         // Check for changes
-        let currentPIDs = Set(processes.map { $0.pid })
-        let knownPIDs = Set(knownProcesses.keys)
+        let currentIDs = Set(tools.map { $0.id })
+        let knownIDs = Set(knownTools.keys)
 
-        if currentPIDs != knownPIDs {
-            // Update known processes
-            knownProcesses = Dictionary(uniqueKeysWithValues: processes.map { ($0.pid, $0) })
+        if currentIDs != knownIDs {
+            // Update known tools
+            knownTools = Dictionary(uniqueKeysWithValues: tools.map { ($0.id, $0) })
 
             // Notify
-            let processList = getProcesses()
-            onProcessesChanged?(processList)
+            let toolsList = getProcesses()
+            onProcessesChanged?(toolsList)
         }
     }
 
-    /// Find all running Claude processes
-    private func findClaudeProcesses() -> [ExternalProcess] {
+    /// Find all installed AI CLI tools
+    nonisolated private func findInstalledAITools() -> [ExternalProcess] {
+        var tools: [ExternalProcess] = []
+
+        // Common AI CLI tool names to search for
+        let aiToolNames = ["claude", "grok", "chatgpt", "cursor", "copilot", "aider", "cody"]
+
+        // Common paths where CLI tools are installed
+        let searchPaths = [
+            "/usr/local/bin",
+            "/opt/homebrew/bin",
+            "/usr/bin",
+            NSHomeDirectory() + "/.local/bin",
+            NSHomeDirectory() + "/bin"
+        ]
+
+        for toolName in aiToolNames {
+            // Try to find the tool using 'which'
+            if let path = findExecutable(toolName) {
+                tools.append(.installed(name: toolName, path: path))
+            } else {
+                // Manually check common paths
+                for searchPath in searchPaths {
+                    let fullPath = searchPath + "/" + toolName
+                    if FileManager.default.isExecutableFile(atPath: fullPath) {
+                        tools.append(.installed(name: toolName, path: fullPath))
+                        break
+                    }
+                }
+            }
+        }
+
+        return tools
+    }
+
+    /// Find executable using 'which' command
+    nonisolated private func findExecutable(_ name: String) -> String? {
         let task = Process()
-        task.executableURL = URL(fileURLWithPath: "/bin/ps")
-        task.arguments = ["aux"]
+        task.executableURL = URL(fileURLWithPath: "/usr/bin/which")
+        task.arguments = [name]
 
         let pipe = Pipe()
         task.standardOutput = pipe
@@ -93,57 +139,19 @@ actor ProcessScanner {
 
         do {
             try task.run()
-
-            // Read output BEFORE waiting (to avoid deadlock if pipe buffer fills)
             let data = pipe.fileHandleForReading.readDataToEndOfFile()
-
             task.waitUntilExit()
 
-            guard let output = String(data: data, encoding: .utf8) else { return [] }
+            guard task.terminationStatus == 0,
+                  let output = String(data: data, encoding: .utf8) else {
+                return nil
+            }
 
-            return parseProcessList(output)
+            let path = output.trimmingCharacters(in: .whitespacesAndNewlines)
+            return path.isEmpty ? nil : path
         } catch {
-            print("Error running ps: \(error)")
-            return []
+            return nil
         }
-    }
-
-    /// Parse ps output to find Claude processes
-    private func parseProcessList(_ output: String) -> [ExternalProcess] {
-        var processes: [ExternalProcess] = []
-
-        let lines = output.components(separatedBy: "\n")
-
-        for line in lines.dropFirst() { // Skip header
-            // Look for claude processes (but not this daemon or grep)
-            let lowercased = line.lowercased()
-            guard lowercased.contains("claude") else { continue }
-            guard !lowercased.contains("agent-bridge") else { continue }
-            guard !lowercased.contains("grep") else { continue }
-
-            // Parse the line: USER PID %CPU %MEM VSZ RSS TT STAT STARTED TIME COMMAND
-            let components = line.split(separator: " ", omittingEmptySubsequences: true)
-            guard components.count >= 11 else { continue }
-
-            guard let pid = Int32(components[1]) else { continue }
-
-            let tty = String(components[6])
-            let command = components[10...].joined(separator: " ")
-
-            // Skip if TTY is "??" (no controlling terminal)
-            guard tty != "??" else { continue }
-
-            let process = ExternalProcess(
-                id: String(pid),
-                pid: pid,
-                command: command,
-                tty: tty,
-                startTime: Date() // We don't parse the actual start time for simplicity
-            )
-            processes.append(process)
-        }
-
-        return processes
     }
 }
 

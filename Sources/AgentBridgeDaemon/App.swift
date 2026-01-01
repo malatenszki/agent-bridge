@@ -31,6 +31,7 @@ struct AgentBridgeDaemon {
 
         let sessionManager = SessionManager()
         let authManager = AuthManager()
+        let processScanner = ProcessScanner()
 
         // Get local IP
         guard let localIP = NetworkUtils.getLocalIPAddress() else {
@@ -42,12 +43,22 @@ struct AgentBridgeDaemon {
 
         print("Starting server on \(localIP):\(port)")
 
+        // Start process scanner for detecting installed AI tools
+        await processScanner.setOnProcessesChanged { tools in
+            let toolNames = tools.map { ($0.command as NSString).lastPathComponent }.joined(separator: ", ")
+            print("📡 Found \(tools.count) AI tool(s): \(toolNames)")
+        }
+        Task {
+            await processScanner.startScanning(interval: 3.0)
+        }
+
         // Create API server
         let server: APIServer
         do {
             server = try APIServer(
                 sessionManager: sessionManager,
                 authManager: authManager,
+                processScanner: processScanner,
                 host: "0.0.0.0",
                 port: port
             )
