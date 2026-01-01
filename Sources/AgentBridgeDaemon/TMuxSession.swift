@@ -268,6 +268,9 @@ final class TMuxSession: @unchecked Sendable {
         outputHistory.append(chunk)
         historyLock.unlock()
 
+        // Broadcast stdin chunk immediately
+        onOutputChunk?(chunk)
+
         // Send via tmux - use -l for literal text, then send Enter separately
         let textProcess = Process()
         textProcess.executableURL = URL(fileURLWithPath: Self.tmuxPath)
