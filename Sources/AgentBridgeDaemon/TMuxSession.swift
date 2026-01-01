@@ -310,6 +310,7 @@ final class TMuxSession: @unchecked Sendable {
     func terminate() {
         updateState(.exited)
 
+        // Kill tmux session
         let process = Process()
         process.executableURL = URL(fileURLWithPath: Self.tmuxPath)
         process.arguments = Self.tmuxArgs + ["kill-session", "-t", id]
@@ -318,7 +319,41 @@ final class TMuxSession: @unchecked Sendable {
 
         try? process.run()
         process.waitUntilExit()
+
+        // Close Terminal.app window (macOS only)
+        #if os(macOS)
+        closeTerminalWindow()
+        #endif
     }
+
+    #if os(macOS)
+    private func closeTerminalWindow() {
+        // AppleScript to close the Terminal window for this session
+        let script = """
+        tell application "Terminal"
+            set windowCount to count of windows
+            repeat with i from 1 to windowCount
+                try
+                    set tabCount to count of tabs of window i
+                    repeat with j from 1 to tabCount
+                        set currentTab to tab j of window i
+                        set tabName to custom title of currentTab
+                        if tabName contains "\(id)" then
+                            close window i
+                            exit repeat
+                        end if
+                    end repeat
+                end try
+            end repeat
+        end tell
+        """
+
+        let closeProcess = Process()
+        closeProcess.executableURL = URL(fileURLWithPath: "/usr/bin/osascript")
+        closeProcess.arguments = ["-e", script]
+        try? closeProcess.run()
+    }
+    #endif
 
     deinit {
         if state != .exited {
